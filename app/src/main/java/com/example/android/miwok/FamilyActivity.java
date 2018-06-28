@@ -16,9 +16,13 @@
 package com.example.android.miwok;
 
 import android.app.Activity;
+import android.content.Context;
+import android.media.AudioAttributes;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ListView;
@@ -28,11 +32,25 @@ import java.util.ArrayList;
 public class FamilyActivity extends AppCompatActivity {
 
     MediaPlayer mMediaPlayer;
+    AudioManager aManager;
+    AudioManager.OnAudioFocusChangeListener afChangeListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.list_view);
+
+        aManager = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
+
+//        AudioAttributes mPlaybackAttributes = new AudioAttributes.Builder()
+//                .setUsage(AudioAttributes.USAGE_GAME)
+//                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+//                .build();
+//        Object mFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+//                .setAudioAttributes(mPlaybackAttributes)
+//                .setAcceptsDelayedFocusGain(true)
+//                .setOnAudioFocusChangeListener(mMyFocusListener, mMyHandler)
+//                .build();
 
         final ArrayList<Word> familyWords = new ArrayList<Word>();
 
@@ -57,19 +75,47 @@ public class FamilyActivity extends AppCompatActivity {
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-
                 releaseMediaPlayer();
                 mMediaPlayer = MediaPlayer.create(FamilyActivity.this, familyWords.get(position).getAudioID());
-                mMediaPlayer.start();
 
-                mMediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+                afChangeListener = new AudioManager.OnAudioFocusChangeListener() {
                     @Override
-                    public void onCompletion(MediaPlayer mp) {
-                        releaseMediaPlayer();
+                    public void onAudioFocusChange(int focusChange) {
+
+                        if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
+                            Log.i("AudioFocus", "Audio Focus Gained");
+                            mMediaPlayer.start();
+                        } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS ){
+                            mMediaPlayer.stop();
+                            releaseMediaPlayer();
+                        } else if( focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+                            mMediaPlayer.pause();
+                        } else if ( focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK ){
+                            mMediaPlayer.pause();
+                        }
                     }
-                });
+                };
+
+                int audioPlayback = aManager.requestAudioFocus(afChangeListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
+                Log.i("Family Activity", "AudioPlay: " + audioPlayback);
+                if (audioPlayback == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+
+                    Log.i("AudioFocus Check", "Audio Focus Granted");
+
+                    mMediaPlayer.start();
+
+                    mMediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+                        @Override
+                        public void onCompletion(MediaPlayer mp) {
+                            releaseMediaPlayer();
+                        }
+                    });
+                } else {
+                    Log.i("AuidioFocus Check", "Audio Focus not Granted");
+                }
             }
         });
+
     }
 
     @Override
