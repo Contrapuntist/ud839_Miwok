@@ -33,7 +33,22 @@ public class PhrasesActivity extends AppCompatActivity {
 
     MediaPlayer mMediaPlayer;
     AudioManager aManager;
-    AudioManager.OnAudioFocusChangeListener afChangeListener;
+    AudioManager.OnAudioFocusChangeListener mOnAudioFocusChangeListener = new AudioManager.OnAudioFocusChangeListener() {
+        @Override
+        public void onAudioFocusChange(int focusChange) {
+
+            if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
+                mMediaPlayer.start();
+            } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS ){
+                mMediaPlayer.stop();
+                releaseMediaPlayer();
+            } else if( focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT ||
+                    focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK ) {
+                mMediaPlayer.pause();
+                mMediaPlayer.seekTo(0);
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,31 +82,14 @@ public class PhrasesActivity extends AppCompatActivity {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
 
                 releaseMediaPlayer();
-                mMediaPlayer = MediaPlayer.create(PhrasesActivity.this, phrases.get(position).getAudioID());
-                // mMediaPlayer.start();
 
-                afChangeListener = new AudioManager.OnAudioFocusChangeListener() {
-                    @Override
-                    public void onAudioFocusChange(int focusChange) {
-
-                        if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
-                            Log.i("AudioFocus", "Audio Focus Gained");
-                            mMediaPlayer.start();
-                        } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS ){
-                            mMediaPlayer.stop();
-                            releaseMediaPlayer();
-                        } else if( focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
-                            mMediaPlayer.pause();
-                        } else if ( focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK ){
-                            mMediaPlayer.pause();
-                        }
-
-                    }
-                };
-
-                int audioPlayback = aManager.requestAudioFocus(afChangeListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
+                int audioPlayback = aManager.requestAudioFocus(mOnAudioFocusChangeListener,
+                        AudioManager.STREAM_MUSIC,
+                        AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
                 Log.i("Phrases Activity", "AudioPlay: " + audioPlayback);
                 if (audioPlayback == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+
+                    mMediaPlayer = MediaPlayer.create(PhrasesActivity.this, phrases.get(position).getAudioID());
 
                     Log.i("AudioFocus Check", "Audio Focus Granted");
 
@@ -103,16 +101,7 @@ public class PhrasesActivity extends AppCompatActivity {
                             releaseMediaPlayer();
                         }
                     });
-                } else {
-                    Log.i("AuidioFocus Check", "Audio Focus not Granted");
                 }
-
-//                mMediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-//                    @Override
-//                    public void onCompletion(MediaPlayer mp) {
-//                        releaseMediaPlayer();
-//                    }
-//                });
             }
         });
     }
@@ -137,6 +126,13 @@ public class PhrasesActivity extends AppCompatActivity {
             // setting the media player to null is an easy way to tell that the media player
             // is not configured to play an audio file at the moment.
             mMediaPlayer = null;
+
+
+            /*
+             * Abandon audiofocus as a result of media player losing focus or finishing.
+             */
+            aManager.abandonAudioFocus(mOnAudioFocusChangeListener);
+
         }
     }
 }
